@@ -1,17 +1,58 @@
-version: "3.9"
-
 services:
-  postgres:
-    image: postgres:15
-    container_name: tree-postgres
-    environment:
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: pass
-      POSTGRES_DB: db
+  db:
+    build:
+      context: .
+      dockerfile: Dockerfile.db
+    container_name: tree-db
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d db"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile.node
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://user:pass@db:5432/db
+    command: ["npx", "prisma", "migrate", "deploy"]
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.node
+    container_name: tree-api
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgresql://user:pass@db:5432/db
+    command: ["node", "dist/main.js"]
+
+  e2e:
+    build:
+      context: .
+      dockerfile: Dockerfile.node
+      target: e2e
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      DATABASE_URL: postgresql://user:pass@db:5432/db
 
 volumes:
   postgres_data:

@@ -1,2 +1,3 @@
 ### Installation Guide
-npm run test:e2e 
+docker compose build
+docker compose up
