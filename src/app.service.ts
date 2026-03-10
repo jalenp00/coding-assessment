@@ -1,7 +1,8 @@
 import { Injectable, NotFoundException } from '@nestjs/common'
 import { PrismaService } from './prisma/prisma.service'
 import { CreateNodeDto } from './dto/create-node.dto'
-import { TreeNodeWithChildren } from './types/tree-node.type'
+import { TreeNodeWithChildren, TreeRow } from './types/tree-node.type'
+import { GET_TREE_RECURSIVE } from './queries/tree.queries'
 
 @Injectable()
 export class AppService {
@@ -45,25 +46,32 @@ export class AppService {
   */
   async getTrees(): Promise<TreeNodeWithChildren[]> {
 
-    const nodes = await this.prisma.treeNode.findMany()
+  const rows = await this.prisma.$queryRawUnsafe<TreeRow[]>(GET_TREE_RECURSIVE)
 
     const map = new Map<number, TreeNodeWithChildren>()
     const roots: TreeNodeWithChildren[] = []
 
     // Map gives us constant time lookup
-    nodes.forEach(node => {
+    rows.forEach(node => {
       map.set(node.id, { ...node, children: [] })
     })
 
-    // Connect parent to children or add to root
-    // Guarantee object presence because we queried them
-    nodes.forEach(node => {
-      if (node.parentId) {
-        map.get(node.parentId)!.children.push(map.get(node.id)!)
+    // adds current node to parent if it has one or adds it as a root
+    for (const node of rows) {
+      const current = map.get(node.id)
+
+      if (!current) { continue }
+
+      if (node.parentId === null) {
+        roots.push(current)
       } else {
-        roots.push(map.get(node.id)!)
+        const parent = map.get(node.parentId)
+
+        if (parent) {
+          parent.children.push(current)
+        }
       }
-    })
+    }
 
     return roots
   }
