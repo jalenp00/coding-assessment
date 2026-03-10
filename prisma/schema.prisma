@@ -1,0 +1,17 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model TreeNode {
+  id        Int        @id @default(autoincrement())
+  label     String
+  parentId  Int?
+  parent    TreeNode?  @relation("TreeHierarchy", fields: [parentId], references: [id])
+  children  TreeNode[] @relation("TreeHierarchy")
+
+  @@index([parentId])
+}
